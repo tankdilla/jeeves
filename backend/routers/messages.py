@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid as uuidlib
 
 from typing import List, Optional
@@ -11,6 +11,8 @@ from models import OutreachThread, Message, Influencer, Campaign
 from schemas import DraftRequest, MessageOut, ApproveRequest, SendResult
 
 from llm import generate_outreach_draft  # expects you already have this
+
+FOLLOWUP_DAYS_DEFAULT = 3
 
 router = APIRouter()
 
@@ -91,16 +93,22 @@ def send_message(message_id: UUID, db: Session = Depends(get_db)):
 
     # TODO: integrate real email provider here
     provider_msg_id = f"stub-{uuidlib.uuid4()}"
+
+    now = datetime.utcnow()
     msg.status = "sent"
     msg.provider_msg_id = provider_msg_id
-    msg.sent_at = datetime.utcnow()
+    msg.sent_at = now
 
     thread = db.query(OutreachThread).get(msg.thread_id)
     if thread:
+        # ✅ Job #3 scheduling fields
         thread.stage = "waiting"
+        thread.last_contact_at = now
+        thread.next_followup_at = now + timedelta(days=FOLLOWUP_DAYS_DEFAULT)
 
     db.commit()
     return SendResult(status="sent", provider_msg_id=provider_msg_id)
+
 
 # --------------------------------------------------------------------
 #  READ-ONLY ENDPOINTS

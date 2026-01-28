@@ -97,3 +97,11 @@ class ApproveRequest(BaseModel):
 class SendResult(BaseModel):
     status: str
     provider_msg_id: Optional[str] = None
+
+class InboundMessageCreate(BaseModel):
+    channel: str = "email"           # email/dm
+    subject: Optional[str] = None
+    body: str = "Hi! I'm interested—can you share details?"
+    received_at: Optional[datetime] = None  # defaults to now
+    set_thread_stage: Optional[str] = "replied"  # or None to not change stage
+

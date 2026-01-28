@@ -13,6 +13,8 @@ celery = Celery(__name__, broker="redis://localhost:6379/0")
 
 logger = get_logger("jeeves", component="worker")
 
+now = datetime.utcnow()
+
 def compute_score(inf: Influencer, rules: dict) -> tuple[float, float, float]:
     # Simple transparent scoring MVP
     niche = 0.0
@@ -199,27 +201,36 @@ def generate_followup_drafts(days_since_last_send: int = 3, limit: int = 25) -> 
     checked_count = 0
 
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_since_last_send)
+        # cutoff = datetime.utcnow() - timedelta(days=days_since_last_send)
 
-        logger.info(
-            "followup_job_started",
-            extra={
-                "task_id": task_id,
-                "days_since_last_send": days_since_last_send,
-                "limit": limit,
-                "cutoff": cutoff.isoformat(),
-            },
-        )
+        # logger.info(
+        #     "followup_job_started",
+        #     extra={
+        #         "task_id": task_id,
+        #         "days_since_last_send": days_since_last_send,
+        #         "limit": limit,
+        #         "cutoff": cutoff.isoformat(),
+        #     },
+        # )
 
         threads = (
             db.query(OutreachThread)
-            .filter(OutreachThread.stage == "waiting")
+            .filter(
+                OutreachThread.stage == "waiting",
+                OutreachThread.next_followup_at.isnot(None),
+                OutreachThread.next_followup_at <= now,
+            )
             .limit(limit)
             .all()
         )
 
         for thread in threads:
             checked_count += 1
+
+            # Skip if follow-up not due yet (preferred scheduling driver)
+            if thread.next_followup_at and thread.next_followup_at > datetime.utcnow():
+                skipped_count += 1
+                continue
 
             # Guard 1: if any inbound message exists, skip (they replied)
             inbound_exists = (
@@ -252,10 +263,10 @@ def generate_followup_drafts(days_since_last_send: int = 3, limit: int = 25) -> 
                 skipped_count += 1
                 continue
 
-            # Not old enough yet → skip
-            if last_sent.sent_at and last_sent.sent_at > cutoff:
-                skipped_count += 1
-                continue
+            # # Not old enough yet → skip
+            # if last_sent.sent_at and last_sent.sent_at > cutoff:
+            #     skipped_count += 1
+            #     continue
 
             # Guard 2: don’t create multiple follow-up drafts if one already exists
             existing_followup_draft = (

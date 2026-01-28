@@ -5,7 +5,13 @@ from uuid import UUID
 
 from db import SessionLocal
 from models import OutreachThread, Influencer, Campaign, Message
-from schemas import ThreadCreate, ThreadOut, MessageOut
+from schemas import ThreadCreate, ThreadOut, MessageOut, InboundMessageCreate
+
+from datetime import datetime
+import os
+
+if os.getenv("ALLOW_TEST_ENDPOINTS", "false").lower() != "true":
+    raise HTTPException(status_code=403, detail="Test endpoints disabled")
 
 router = APIRouter()
 
@@ -75,3 +81,38 @@ def get_thread_messages(thread_id: UUID, db: Session = Depends(get_db)):
         .limit(500)
         .all()
     )
+
+@router.post("/{thread_id}/simulate_inbound", response_model=MessageOut)
+def simulate_inbound(thread_id: UUID, payload: InboundMessageCreate, db: Session = Depends(get_db)):
+    """
+    TESTING endpoint: simulates an inbound reply from an influencer.
+    Creates Message(direction='inbound', status='received') and optionally updates thread.stage.
+    """
+    thread = db.query(OutreachThread).get(thread_id)
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+
+    received_at = payload.received_at or datetime.utcnow()
+
+    msg = Message(
+        thread_id=thread.id,
+        channel=payload.channel,
+        direction="inbound",
+        status="received",
+        subject=payload.subject,
+        body=payload.body,
+        created_at=received_at,
+    )
+    db.add(msg)
+
+    # Update thread stage (optional)
+    if payload.set_thread_stage:
+        thread.stage = payload.set_thread_stage
+
+    # Also update last_contact_at since a reply is contact
+    thread.last_contact_at = received_at
+    thread.next_followup_at = None  # stop follow-ups when replied
+
+    db.commit()
+    db.refresh(msg)
+    return msg
