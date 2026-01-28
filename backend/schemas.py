@@ -3,6 +3,7 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 from decimal import Decimal
+from datetime import datetime
 
 # ---------- Influencers ----------
 class InfluencerCreate(BaseModel):
@@ -63,6 +64,9 @@ class ThreadOut(BaseModel):
     influencer_id: UUID
     stage: str
 
+    last_contact_at: Optional[datetime] = None
+    next_followup_at: Optional[datetime] = None  
+
     class Config:
         from_attributes = True
 
@@ -81,6 +85,8 @@ class MessageOut(BaseModel):
     status: str
     subject: Optional[str] = None
     body: str
+    created_at: datetime
+    sent_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

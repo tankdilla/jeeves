@@ -4,6 +4,8 @@ from uuid import UUID
 from datetime import datetime
 import uuid as uuidlib
 
+from typing import List, Optional
+
 from db import SessionLocal
 from models import OutreachThread, Message, Influencer, Campaign
 from schemas import DraftRequest, MessageOut, ApproveRequest, SendResult
@@ -99,3 +101,45 @@ def send_message(message_id: UUID, db: Session = Depends(get_db)):
 
     db.commit()
     return SendResult(status="sent", provider_msg_id=provider_msg_id)
+
+# --------------------------------------------------------------------
+#  READ-ONLY ENDPOINTS
+# --------------------------------------------------------------------
+
+#  get one message by id
+@router.get("/{message_id}", response_model=MessageOut)
+def get_message(message_id: UUID, db: Session = Depends(get_db)):
+    msg = db.query(Message).get(message_id)
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    return msg
+
+# list messages (optionally filter by status or thread)
+@router.get("", response_model=List[MessageOut])
+def list_messages(
+    status: Optional[str] = None,
+    thread_id: Optional[UUID] = None,
+    db: Session = Depends(get_db)
+):
+    q = db.query(Message)
+    if status:
+        q = q.filter(Message.status == status)
+    if thread_id:
+        q = q.filter(Message.thread_id == thread_id)
+    return q.order_by(Message.created_at.desc()).limit(200).all()
+
+# list messages for a thread (canonical endpoint)
+@router.get("/thread/{thread_id}", response_model=List[MessageOut])
+def list_messages_for_thread(thread_id: UUID, db: Session = Depends(get_db)):
+    # ensure thread exists (helps with clearer errors)
+    thread = db.query(OutreachThread).get(thread_id)
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+
+    msgs = (
+        db.query(Message)
+        .filter(Message.thread_id == thread_id)
+        .order_by(Message.created_at.asc())
+        .all()
+    )
+    return msgs

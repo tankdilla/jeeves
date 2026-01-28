@@ -4,8 +4,8 @@ from typing import List, Optional
 from uuid import UUID
 
 from db import SessionLocal
-from models import OutreachThread, Influencer, Campaign
-from schemas import ThreadCreate, ThreadOut
+from models import OutreachThread, Influencer, Campaign, Message
+from schemas import ThreadCreate, ThreadOut, MessageOut
 
 router = APIRouter()
 
@@ -39,4 +39,39 @@ def list_threads(stage: Optional[str] = None, db: Session = Depends(get_db)):
     q = db.query(OutreachThread)
     if stage:
         q = q.filter(OutreachThread.stage == stage)
-    return q.order_by(OutreachThread.created_at.desc()).limit(200).all()
+    
+    # Prefer next_followup_at soonest, then last_contact_at most recent, then stable fallback
+    # This is a practical ordering for an outreach inbox.
+    return (
+        q.order_by(
+            OutreachThread.next_followup_at.asc().nulls_last(),
+            OutreachThread.last_contact_at.desc().nulls_last(),
+            OutreachThread.id.desc(),
+        )
+        .limit(200)
+        .all()
+    )
+    # return q.limit(200).all()
+    # return q.order_by(OutreachThread.created_at.desc()).limit(200).all()
+
+# get one thread by id
+@router.get("/{thread_id}", response_model=ThreadOut)
+def get_thread(thread_id: UUID, db: Session = Depends(get_db)):
+    thread = db.query(OutreachThread).get(thread_id)
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    return thread
+
+@router.get("/{thread_id}/messages", response_model=List[MessageOut])
+def get_thread_messages(thread_id: UUID, db: Session = Depends(get_db)):
+    thread = db.query(OutreachThread).get(thread_id)
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+
+    return (
+        db.query(Message)
+        .filter(Message.thread_id == thread_id)
+        .order_by(Message.created_at.asc())
+        .limit(500)
+        .all()
+    )

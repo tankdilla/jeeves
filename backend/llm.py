@@ -97,68 +97,62 @@ Body: ...
     return {"subject": subject, "body": body}
 
 
-# llm.py
-# import json
-# from openai import OpenAI
+def generate_followup_draft(*, brand_context: Dict[str, Any], influencer: Dict[str, Any], offer: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Follow-up draft (same mode logic as initial drafts).
+    Returns dict with {subject, body}.
+    """
+    # Reuse your existing mode behavior by calling generate_outreach_draft if you want,
+    # but better to make followups distinct.
+    mode = os.getenv("LLM_MODE", "mock").lower().strip()
 
-# # client = OpenAI()
+    # MOCK follow-up (no key required)
+    if mode != "openai" or not os.getenv("OPENAI_API_KEY"):
+        brand_name = (brand_context or {}).get("brand_name", "Hello To Natural")
+        handle = influencer.get("handle") or "there"
+        display = influencer.get("display_name") or handle
+        offer_details = (offer or {}).get("details", "a product set")
+        offer_type = (offer or {}).get("type", "gifted")
+        cta = (offer or {}).get("cta", "If you're open, reply with your email + shipping info.")
 
-# DRAFT_SCHEMA = {
-#   "type": "object",
-#   "properties": {
-#     "subject": {"type": "string"},
-#     "body": {"type": "string"},
-#     "personalization_notes": {"type": "array", "items": {"type": "string"}},
-#     "followup_body": {"type": "string"}
-#   },
-#   "required": ["subject", "body", "personalization_notes", "followup_body"]
-# }
+        subject = f"Quick follow-up, {display} ✨"
+        body = "\n".join([
+            f"Hi {display},",
+            "",
+            "Just following up in case my earlier note got buried.",
+            f"We’d still love to offer you {offer_details} as a {offer_type} collab.",
+            cta,
+            "",
+            "If you’re not open right now, just reply “no thanks” and I’ll close this out.",
+            "",
+            f"— {brand_name} Team",
+        ]).strip()
 
-# def generate_outreach_draft(brand_context, influencer, offer):
-#     try:
-#         from openai import OpenAI
-#     except ModuleNotFoundError as e:
-#         raise RuntimeError(
-#             "openai package not installed. Run: pip install openai"
-#         ) from e
+        return {"subject": subject, "body": body}
 
-#     client = OpenAI()  # ✅ only created when function is called
+    # OPENAI mode (later)
+    from openai import OpenAI
+    client = OpenAI()
 
-#     # TODO: replace with your real prompt + schema
-#     response = client.responses.create(
-#         model="gpt-5.2-mini",
-#         input={
-#             "brand_context": brand_context,
-#             "influencer": influencer,
-#             "offer": offer,
-#             "instructions": "Write a concise outreach email."
-#         }
-#     )
+    prompt = f"""
+Brand: {brand_context}
+Influencer: {influencer}
+Offer: {offer}
 
-#     return {
-#         "subject": "Quick collab idea",
-#         "body": response.output_text
-#     }
+Write a short, polite follow-up email.
+- Assume a prior outreach email was sent a few days ago.
+- Be truthful; only reference what we know.
+- Include opt-out.
+Return:
+Subject: ...
+Body: ...
+""".strip()
 
-# Orig
-#
-# def generate_outreach_draft(brand_context: dict, influencer: dict, offer: dict) -> dict:
-#     prompt = {
-#       "brand": brand_context,
-#       "influencer": influencer,
-#       "offer": offer,
-#       "instructions": [
-#         "Write a concise, warm outreach email.",
-#         "Be truthful. Only reference specific details included in influencer data.",
-#         "Do not mention trademarks. Use general scent descriptions.",
-#         "Include a simple next step and an opt-out line."
-#       ],
-#       "output": "Return JSON with subject, body, personalization_notes, followup_body."
-#     }
+    resp = client.responses.create(
+        model=os.getenv("OPENAI_MODEL", "gpt-5.2-mini"),
+        input=prompt,
+    )
 
-#     resp = client.responses.create(
-#       model="gpt-5.2-mini",  # good for structured writing; adjust as needed
-#       input=json.dumps(prompt),
-#       text={"format": {"type": "json_schema", "json_schema": DRAFT_SCHEMA}}
-#     )
-#     return json.loads(resp.output_text)
+    text = (resp.output_text or "").strip()
+    subject = f"Quick follow-up, {influencer.get('display_name') or influencer.get('handle')}"
+    return {"subject": subject, "body": text}
