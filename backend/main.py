@@ -1,10 +1,14 @@
 # main.py
+from dotenv import load_dotenv
+load_dotenv()
+
 import time
 import uuid
 from fastapi import FastAPI, Request, Response
 from routers import influencers, campaigns, threads, messages
 from db import engine
 from logging_config import get_logger
+from routers.webhooks_sendgrid import router as sendgrid_webhooks_router
 
 logger = get_logger("jeeves", component="api")
 
@@ -53,6 +57,8 @@ app.include_router(influencers.router, prefix="/influencers", tags=["influencers
 app.include_router(campaigns.router, prefix="/campaigns", tags=["campaigns"])
 app.include_router(threads.router, prefix="/threads", tags=["threads"])
 app.include_router(messages.router, prefix="/messages", tags=["messages"])
+
+app.include_router(sendgrid_webhooks_router)
 
 @app.get("/health")
 def health():
