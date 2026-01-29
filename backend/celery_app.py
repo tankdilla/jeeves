@@ -31,4 +31,16 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(minute=0, hour="*/1"),
         "args": (3, 25),  # 3 days since last send, limit 25
     },
+    "score-influencers-nightly": {
+        "task": "tasks.score_influencers",
+        "schedule": crontab(minute=0, hour=2),
+        "args": (200, 24),
+    },
+    "campaign-fill-and-draft-every-30-min": {
+        "task": "tasks.campaign_fill_and_draft",
+        "schedule": crontab(minute="*/30"),
+        "args": ("<PASTE_CAMPAIGN_UUID_HERE>",),
+        "kwargs": {"min_score": 70.0, "max_new_threads": 25, "require_email": True},
+    },
+
 }

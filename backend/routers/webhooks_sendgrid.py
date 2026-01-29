@@ -96,3 +96,4 @@ async def inbound_email(request: Request, db: Session = Depends(get_db)):
 
     db.commit()
     return {"status": "ok", "thread_id": str(thread.id), "message_id": str(msg.id)}
+    

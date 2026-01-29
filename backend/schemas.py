@@ -33,7 +33,10 @@ class InfluencerOut(BaseModel):
     platform: str
     handle: str
     status: str
+    brand_fit_score: Optional[Decimal] = None
+    risk_score: Optional[Decimal] = None
     overall_score: Optional[Decimal] = None
+    score_breakdown: Optional[Dict[str, Any]] = None
 
     class Config:
         from_attributes = True

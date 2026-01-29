@@ -27,11 +27,17 @@ class Influencer(Base):
     risk_score = Column(Numeric, nullable=True)
     overall_score = Column(Numeric, nullable=True)
 
+    score_breakdown = Column(JSON, nullable=True)
+    score_updated_at = Column(DateTime, nullable=True)
+
+    discovered_source = Column(String, nullable=True)  # optional but handy
+
     status = Column(String, nullable=False, default="new")
     notes = Column(Text, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 
 class Campaign(Base):
     __tablename__ = "campaigns"
